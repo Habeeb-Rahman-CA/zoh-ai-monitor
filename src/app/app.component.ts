@@ -182,6 +182,21 @@ interface SystemStats {
   crash_reports_count: number;
 }
 
+interface UsageLog {
+  id?: number;
+  userId: string;
+  feature: string;
+  duration: number;
+  createdAt: number;
+}
+
+
+interface DailyUsage {
+  feature: string;
+  totalDuration: number;
+}
+
+
 @Component({
   selector: "app-root",
   standalone: true,
@@ -192,6 +207,9 @@ interface SystemStats {
 })
 export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   constructor(private cdr: ChangeDetectorRef) { }
+  public Math = Math;
+  public Date = Date;
+
   @ViewChild('cpuCanvas') cpuCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('memoryCanvas') memoryCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChildren('coreCanvas') coreCanvases!: QueryList<ElementRef<HTMLCanvasElement>>;
@@ -303,7 +321,15 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   showTree = false;
 
   // Management State
-  activeTab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' = 'dashboard';
+  activeTab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' | 'analytics' = 'dashboard';
+  lastTabChangeTime = Date.now();
+  windowFocusStartTime = Date.now();
+  userId = 'default_user'; // Could be fetched from a service later
+  usageLogs: UsageLog[] = [];
+  dailyUsage: DailyUsage[] = [];
+  totalDailyTime = 0;
+  aggregatedUsage: { feature: string, duration: number }[] = [];
+
   lastMgmtRefresh = 0;
   isLoadingMgmt = false;
   mgmtSubTab: 'services' | 'startup' = 'services';
@@ -413,6 +439,7 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     // Initial fetch
     await this.fetchStats();
     this.fetchPublicIp();
+    this.fetchUsageLogs();
 
     // Minimum splash duration 2.5s
     setTimeout(() => {
@@ -433,6 +460,44 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       }
       this.cdr.markForCheck(); // Trigger manual CD update
     }, 1000);
+  }
+
+
+
+
+
+  async fetchUsageLogs() {
+    try {
+      this.usageLogs = await invoke<UsageLog[]>('get_usage_logs');
+      await this.fetchDailyUsage();
+      this.processAggregatedUsage();
+      this.cdr.markForCheck();
+    } catch (e) {
+      console.error("Failed to fetch usage logs", e);
+    }
+  }
+
+  async fetchDailyUsage() {
+    try {
+      this.dailyUsage = await invoke<DailyUsage[]>('get_daily_usage');
+      this.totalDailyTime = this.dailyUsage.reduce((acc, curr) => acc + curr.totalDuration, 0);
+    } catch (e) {
+      console.error("Failed to fetch daily usage", e);
+    }
+  }
+
+
+  processAggregatedUsage() {
+    const map = new Map<string, number>();
+    this.usageLogs.forEach(log => {
+      const current = map.get(log.feature) || 0;
+      map.set(log.feature, current + log.duration);
+    });
+
+    this.aggregatedUsage = Array.from(map.entries())
+      .map(([feature, duration]) => ({ feature, duration }))
+      .sort((a, b) => b.duration - a.duration)
+      .slice(0, 10);
   }
 
 
@@ -587,11 +652,14 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.diskWriteHistory.push(stats.disk_write_speed);
       this.diskWriteHistory.shift();
 
-      // Track App Usage (Top processes in this sample)
-      stats.processes.slice(0, 10).forEach(p => {
-        const current = this.appUsageMap.get(p.name) || 0;
-        this.appUsageMap.set(p.name, current + 1);
-      });
+      // Track App Usage (Top CPU consumers)
+      [...stats.processes]
+        .sort((a, b) => b.cpu_usage - a.cpu_usage)
+        .slice(0, 10)
+        .forEach(p => {
+          const current = this.appUsageMap.get(p.name) || 0;
+          this.appUsageMap.set(p.name, current + 1);
+        });
       this.updateAppUsageList();
 
       if (this.coreHistories.length === 0) {
@@ -968,8 +1036,25 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // --- Management Methods ---
 
-  setTab(tab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming') {
+  setTab(tab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' | 'analytics') {
+    const now = Date.now();
+    const duration = Math.floor((now - this.lastTabChangeTime) / 1000);
+    
+    // 1. Record usage of previous tab
+    if (duration > 0) {
+      invoke('save_usage', { 
+        userId: this.userId, 
+        feature: this.activeTab, 
+        duration, 
+        timestamp: Math.floor(this.lastTabChangeTime / 1000) 
+      }).catch(err => console.error("Failed to record usage", err));
+    }
+
+    // 2. Switch tab
     this.activeTab = tab;
+    this.lastTabChangeTime = now;
+    this.managementSearchTerm = '';
+
     if (tab === 'management') {
       this.refreshManagementData();
     } else if (tab === 'dev') {
@@ -978,9 +1063,14 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.initGamingFeatures();
     } else if (tab === 'performance') {
       setTimeout(() => this.updateCharts(), 50);
+    } else if (tab === 'analytics') {
+      this.fetchUsageLogs();
+      this.fetchDailyUsage();
     }
+    this.updateCaches();
     this.cdr.markForCheck();
   }
+
 
   setMgmtSubTab(sub: 'services' | 'startup') {
     this.mgmtSubTab = sub;
@@ -2114,3 +2204,5 @@ Provide only the bullet points, no preamble.`;
     return 'rgba(255, 255, 255, 0.05)';
   }
 }
+
+

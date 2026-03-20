@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::io::{self, Write};
@@ -7,6 +7,41 @@ use std::sync::{Arc, Mutex};
 use sysinfo::{Components, Disks, Networks, System};
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
+use rusqlite::{Connection, params};
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+
+fn get_active_app() -> String {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.0.is_null() {
+            return "Idle / System".to_string();
+        }
+
+        let mut pid: u32 = 0;
+        let _ = GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid == 0 {
+            return "Idle / System".to_string();
+        }
+
+        let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid);
+        if let Ok(handle) = handle {
+            let mut name_buffer: [u16; 512] = [0; 512];
+            let len = GetModuleBaseNameW(handle, None, &mut name_buffer);
+            if len > 0 {
+                let name = String::from_utf16_lossy(&name_buffer[..len as usize]);
+                if name.to_lowercase().ends_with(".exe") {
+                    return name[..name.len()-4].to_string();
+                }
+                return name;
+            }
+        }
+    }
+    "Unknown / System".to_string()
+}
+
 
 #[cfg(target_os = "windows")]
 fn create_silent_command(cmd: &str) -> Command {
@@ -80,6 +115,16 @@ struct StartupInfo {
     name: String,
     command: String,
     location: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UsageLog {
+    id: Option<i32>,
+    user_id: String,
+    feature: String,
+    duration: i64,
+    created_at: i64,
 }
 
 #[derive(Serialize)]
@@ -187,6 +232,7 @@ pub struct AppState {
     vram_total: Mutex<u64>,
     gpu_usage: Mutex<f32>,
     vram_used: Mutex<u64>,
+    db: Mutex<Connection>,
 }
 
 #[tauri::command]
@@ -621,6 +667,77 @@ fn get_startup_apps() -> Vec<StartupInfo> {
         }
     }
     vec![]
+}
+
+#[tauri::command]
+fn save_usage(
+    state: State<'_, Arc<AppState>>,
+    user_id: String,
+    feature: String,
+    duration: u64,
+    timestamp: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute(
+        "INSERT INTO usage_logs (user_id, feature, duration, created_at) VALUES (?1, ?2, ?3, ?4)",
+        params![user_id, feature, duration, timestamp],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DailyUsage {
+    feature: String,
+    total_duration: i64,
+}
+
+#[tauri::command]
+fn get_daily_usage(state: State<'_, Arc<AppState>>) -> Result<Vec<DailyUsage>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(
+        "SELECT feature, SUM(duration) as total_duration 
+         FROM usage_logs 
+         WHERE date(created_at, 'unixepoch', 'localtime') = date('now', 'localtime')
+         GROUP BY feature
+         ORDER BY total_duration DESC"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(DailyUsage {
+            feature: row.get(0)?,
+            total_duration: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row.map_err(|e| e.to_string())?);
+    }
+    Ok(results)
+}
+
+#[tauri::command]
+fn get_usage_logs(state: State<'_, Arc<AppState>>) -> Result<Vec<UsageLog>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT id, user_id, feature, duration, created_at FROM usage_logs ORDER BY created_at DESC LIMIT 100")
+        .map_err(|e| e.to_string())?;
+    
+    let logs = stmt.query_map([], |row| {
+        Ok(UsageLog {
+            id: Some(row.get(0)?),
+            user_id: row.get(1)?,
+            feature: row.get(2)?,
+            duration: row.get(3)?,
+            created_at: row.get(4)?,
+        })
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    Ok(logs)
 }
 
 #[tauri::command]
@@ -1311,6 +1428,27 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            let data_dir = app.path().app_data_dir().unwrap();
+            if !data_dir.exists() {
+                fs::create_dir_all(&data_dir).unwrap();
+            }
+            let db_path = data_dir.join("zoh_monitor.db");
+            let conn = Connection::open(db_path).expect("Failed to open database");
+            
+            // Enable WAL mode for better concurrency between threads
+            let _ = conn.execute("PRAGMA journal_mode=WAL", []);
+            
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS usage_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    feature TEXT NOT NULL,
+                    duration INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL
+                )",
+                [],
+            ).expect("Failed to create table");
+
             let app_state = Arc::new(AppState {
                 sys: Mutex::new(System::new_all()),
                 disks: Mutex::new(Disks::new_with_refreshed_list()),
@@ -1326,11 +1464,13 @@ pub fn run() {
                 vram_total: Mutex::new(get_vram_total_fallback()),
                 gpu_usage: Mutex::new(0.0),
                 vram_used: Mutex::new(0),
+                db: Mutex::new(conn),
             });
 
             app.manage(app_state.clone());
 
             // Background Thread for Slow Metrics
+
             let thread_state = app_state.clone();
             std::thread::spawn(move || loop {
                 let wifi = get_wifi_signal();
@@ -1353,8 +1493,38 @@ pub fn run() {
                 std::thread::sleep(std::time::Duration::from_secs(5));
             });
 
+            // App Tracking Thread
+            let thread_state_tracking = app_state.clone();
+            std::thread::spawn(move || {
+                let mut current_app = get_active_app();
+                let mut last_change = std::time::Instant::now();
+                
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    let now_app = get_active_app();
+                    
+                    let elapsed = last_change.elapsed().as_secs();
+
+                    // If app changed OR it's been 60 seconds, record it
+                    if now_app != current_app || elapsed >= 60 {
+                        if elapsed > 0 {
+                            if let Ok(db) = thread_state_tracking.db.lock() {
+                                let timestamp = chrono::Utc::now().timestamp();
+                                let _ = db.execute(
+                                    "INSERT INTO usage_logs (user_id, feature, duration, created_at) VALUES (?1, ?2, ?3, ?4)",
+                                    params!["system_user", current_app, elapsed, timestamp],
+                                );
+                            }
+                        }
+                        current_app = now_app;
+                        last_change = std::time::Instant::now();
+                    }
+                }
+            });
+
             Ok(())
         })
+
         .invoke_handler(tauri::generate_handler![
             greet,
             get_system_stats,
@@ -1372,8 +1542,13 @@ pub fn run() {
             get_environment_info,
             toggle_gaming_boost,
             cleanup_gaming_memory,
-            report_error
+            report_error,
+            save_usage,
+            get_usage_logs,
+            get_daily_usage
+
         ])
+
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
