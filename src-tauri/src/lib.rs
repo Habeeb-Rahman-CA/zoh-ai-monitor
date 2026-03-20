@@ -693,6 +693,13 @@ struct DailyUsage {
     total_duration: i64,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WeeklyTrend {
+    date: String,
+    total_duration: i64,
+}
+
 #[tauri::command]
 fn get_daily_usage(state: State<'_, Arc<AppState>>) -> Result<Vec<DailyUsage>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -724,7 +731,7 @@ fn get_usage_logs(state: State<'_, Arc<AppState>>) -> Result<Vec<UsageLog>, Stri
     let mut stmt = db
         .prepare("SELECT id, user_id, feature, duration, created_at FROM usage_logs ORDER BY created_at DESC LIMIT 100")
         .map_err(|e| e.to_string())?;
-    
+
     let logs = stmt.query_map([], |row| {
         Ok(UsageLog {
             id: Some(row.get(0)?),
@@ -738,6 +745,32 @@ fn get_usage_logs(state: State<'_, Arc<AppState>>) -> Result<Vec<UsageLog>, Stri
     .collect();
 
     Ok(logs)
+}
+
+#[tauri::command]
+fn get_weekly_trends(state: State<'_, Arc<AppState>>) -> Result<Vec<WeeklyTrend>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    // Get last 7 days of total usage
+    let mut stmt = db.prepare(
+        "SELECT date(created_at, 'unixepoch', 'localtime') as day, SUM(duration) as total_duration 
+         FROM usage_logs 
+         WHERE created_at >= strftime('%s', 'now', '-7 days')
+         GROUP BY day
+         ORDER BY day ASC"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(WeeklyTrend {
+            date: row.get(0)?,
+            total_duration: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row.map_err(|e| e.to_string())?);
+    }
+    Ok(results)
 }
 
 #[tauri::command]
@@ -1545,8 +1578,8 @@ pub fn run() {
             report_error,
             save_usage,
             get_usage_logs,
-            get_daily_usage
-
+            get_daily_usage,
+            get_weekly_trends
         ])
 
         .run(tauri::generate_context!())

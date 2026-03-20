@@ -196,6 +196,11 @@ interface DailyUsage {
   totalDuration: number;
 }
 
+interface WeeklyTrend {
+  date: string;
+  totalDuration: number;
+}
+
 
 @Component({
   selector: "app-root",
@@ -217,6 +222,8 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('pingCanvas') pingCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('netTrafficCanvas') netTrafficCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('diskIOHistoryCanvas') diskIOHistoryCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('dailyUsageCanvas') dailyUsageCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('weeklyTrendCanvas') weeklyTrendCanvas!: ElementRef<HTMLCanvasElement>;
 
   systemStats: SystemStats | null = null;
   interval: any;
@@ -327,8 +334,12 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   userId = 'default_user'; // Could be fetched from a service later
   usageLogs: UsageLog[] = [];
   dailyUsage: DailyUsage[] = [];
+  weeklyTrends: WeeklyTrend[] = [];
   totalDailyTime = 0;
   aggregatedUsage: { feature: string, duration: number }[] = [];
+
+  dailyUsageChart: Chart | null = null;
+  weeklyTrendChart: Chart | null = null;
 
   lastMgmtRefresh = 0;
   isLoadingMgmt = false;
@@ -481,8 +492,88 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     try {
       this.dailyUsage = await invoke<DailyUsage[]>('get_daily_usage');
       this.totalDailyTime = this.dailyUsage.reduce((acc, curr) => acc + curr.totalDuration, 0);
+      if (this.dailyUsageChart) {
+        this.dailyUsageChart.data.labels = this.dailyUsage.slice(0, 8).map(u => u.feature);
+        this.dailyUsageChart.data.datasets[0].data = this.dailyUsage.slice(0, 8).map(u => u.totalDuration / 60); // mins
+        this.dailyUsageChart.update();
+      }
     } catch (e) {
       console.error("Failed to fetch daily usage", e);
+    }
+  }
+
+  async fetchWeeklyTrends() {
+    try {
+      this.weeklyTrends = await invoke<WeeklyTrend[]>('get_weekly_trends');
+      console.log('Weekly Trends:', this.weeklyTrends);
+      if (this.weeklyTrendChart) {
+        this.weeklyTrendChart.data.labels = this.weeklyTrends.map(t => {
+           const date = new Date(t.date);
+           return date.toLocaleDateString(undefined, { weekday: 'short' });
+        });
+        this.weeklyTrendChart.data.datasets[0].data = this.weeklyTrends.map(t => t.totalDuration / 3600); // hours
+        this.weeklyTrendChart.update();
+      }
+    } catch (e) {
+      console.error("Failed to fetch weekly trends", e);
+    }
+  }
+
+  initAnalyticsCharts() {
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#888', font: { size: 10 } } },
+          y: { 
+            beginAtZero: true, 
+            grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
+            ticks: { color: '#888', font: { size: 10 } } 
+          }
+        }
+    };
+
+    if (this.dailyUsageCanvas) {
+        if (this.dailyUsageChart) this.dailyUsageChart.destroy();
+        this.dailyUsageChart = new Chart(this.dailyUsageCanvas.nativeElement, {
+            type: 'bar',
+            data: {
+                labels: this.dailyUsage.slice(0, 8).map(u => u.feature),
+                datasets: [{
+                    data: this.dailyUsage.slice(0, 8).map(u => u.totalDuration / 60),
+                    backgroundColor: 'rgba(96, 205, 255, 0.6)',
+                    borderColor: '#60CDFF',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: { ...commonOptions, indexAxis: 'y' } as any
+        });
+    }
+
+    if (this.weeklyTrendCanvas) {
+        if (this.weeklyTrendChart) this.weeklyTrendChart.destroy();
+        this.weeklyTrendChart = new Chart(this.weeklyTrendCanvas.nativeElement, {
+            type: 'line',
+            data: {
+                labels: this.weeklyTrends.map(t => {
+                   const date = new Date(t.date);
+                   return date.toLocaleDateString(undefined, { weekday: 'short' });
+                }),
+                datasets: [{
+                    data: this.weeklyTrends.map(t => t.totalDuration / 3600),
+                    borderColor: '#B56CFF',
+                    backgroundColor: 'rgba(181, 108, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#B56CFF'
+                }]
+            },
+            options: commonOptions
+        });
     }
   }
 
@@ -1066,6 +1157,8 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     } else if (tab === 'analytics') {
       this.fetchUsageLogs();
       this.fetchDailyUsage();
+      this.fetchWeeklyTrends();
+      setTimeout(() => this.initAnalyticsCharts(), 100);
     }
     this.updateCaches();
     this.cdr.markForCheck();

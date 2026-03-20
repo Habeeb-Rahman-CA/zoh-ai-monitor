@@ -1458,6 +1458,7 @@
     </section>
 
     <!-- Screen Time Analytics View -->
+    <!-- Screen Time Analytics View -->
     <section class="analytics-view" [class.hidden]="activeTab !== 'analytics'">
       <div class="view-header">
         <div class="header-main">
@@ -1467,93 +1468,97 @@
             <p>Monitors application usage throughout the day</p>
           </div>
         </div>
-        <button class="refresh-btn" (click)="fetchUsageLogs()">
-          <i class="ri-refresh-line"></i> Refresh Stats
-        </button>
-      </div>
-
-      <!-- Phase 2: Today's Summary Row -->
-      <div class="today-stats-banner fade-in" *ngIf="dailyUsage.length > 0">
-        <div class="banner-main">
-          <div class="total-big-count">
-            <span class="count-label">TOTAL TIME TODAY</span>
-            <span class="count-val">{{ formatDuration(totalDailyTime) }}</span>
-          </div>
-          <div class="top-feature">
-            <span class="count-label">MOST USED</span>
-            <span class="count-val">{{ dailyUsage[0].feature }}</span>
-          </div>
-        </div>
-        <div class="banner-chart">
-               <!-- Small mini-bar viz for the day -->
-               <div class="mini-viz-container">
-                  <div class="viz-bar" *ngFor="let item of dailyUsage.slice(0, 5)" 
-                       [style.width.%]="(item.totalDuration / totalDailyTime) * 100"
-                       [title]="item.feature + ': ' + formatDuration(item.totalDuration)">
-                  </div>
-               </div>
+        <div class="header-actions">
+           <button class="refresh-btn" (click)="fetchUsageLogs(); fetchDailyUsage(); fetchWeeklyTrends()">
+             <i class="ri-refresh-line"></i> Refresh Data
+           </button>
         </div>
       </div>
 
-      <div class="analytics-grid">
-        <!-- Recent Activity Card -->
-        <div class="stat-card logs-card fade-in">
+      <!-- Summary Stats Banner -->
+      <div class="analytics-banner fade-in" *ngIf="dailyUsage.length > 0">
+        <div class="stat-box main">
+          <span class="stat-label">TOTAL TIME TODAY</span>
+          <span class="stat-value">{{ formatDuration(totalDailyTime) }}</span>
+          <div class="stat-trend positive"><i class="ri-arrow-up-line"></i> Tracking active</div>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">NUMBER 1 APP</span>
+          <span class="stat-value">{{ dailyUsage[0].feature }}</span>
+          <span class="stat-subtext">{{ formatDuration(dailyUsage[0].totalDuration) }} active</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">UNIQUE APPS</span>
+          <span class="stat-value">{{ dailyUsage.length }}</span>
+          <span class="stat-subtext">Detected today</span>
+        </div>
+      </div>
+
+      <div class="analytics-grid-new">
+        <!-- Daily Distribution Chart -->
+        <div class="chart-card fade-in">
+           <div class="card-header">
+             <span class="icon" style="color: #60CDFF;"><i class="ri-bar-chart-fill"></i></span>
+             <div class="title-group">
+                <h3>Daily Feature Distribution</h3>
+                <span class="subtitle">Usage in minutes · Top 8</span>
+             </div>
+           </div>
+           <div class="chart-body">
+             <canvas #dailyUsageCanvas></canvas>
+             <div class="empty-chart" *ngIf="dailyUsage.length === 0">
+               <i class="ri-pie-chart-line"></i>
+               <p>Collecting data...</p>
+             </div>
+           </div>
+        </div>
+
+        <!-- Weekly Trend Chart -->
+        <div class="chart-card fade-in">
           <div class="card-header">
-            <span class="icon" style="color: #60CDFF;"><i class="ri-history-line"></i></span>
-            <h3>Historical Activity</h3>
+            <span class="icon" style="color: #B56CFF;"><i class="ri-line-chart-line"></i></span>
+            <div class="title-group">
+               <h3>Weekly Usage Intensity</h3>
+               <span class="subtitle">Total hours per day</span>
+            </div>
           </div>
-          <div class="logs-container">
-            <div class="table-scroll">
-              <table class="logs-table">
-                <thead>
-                  <tr>
-                    <th>Feature</th>
-                    <th>Duration</th>
-                    <th>Date & Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let log of usageLogs; trackBy: trackById">
-                    <td class="feature-cell">
-                      <span class="feature-tag" [class]="log.feature">{{ log.feature }}</span>
-                    </td>
-                    <td class="duration-cell">{{ formatDuration(log.duration) }}</td>
-                    <td class="timestamp-cell">{{ formatTimestamp(log.createdAt) }}</td>
-                  </tr>
-                  <tr *ngIf="usageLogs.length === 0">
-                    <td colspan="3" class="empty-msg">
-                      <i class="ri-inbox-line" style="font-size: 2rem; opacity: 0.3; display: block; margin-bottom: 0.5rem;"></i>
-                      <p>No activity recorded yet.</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+          <div class="chart-body">
+            <canvas #weeklyTrendCanvas></canvas>
+            <div class="empty-chart" *ngIf="weeklyTrends.length === 0">
+               <i class="ri-line-chart-line"></i>
+               <p>Weekly history will appear as data matures</p>
             </div>
           </div>
         </div>
 
-        <!-- Session Summary Card -->
-        <div class="stat-card summary-card fade-in">
+        <!-- Detailed Logs -->
+        <div class="stat-card logs-card-new fade-in">
           <div class="card-header">
-            <span class="icon" style="color: #B56CFF;"><i class="ri-bar-chart-2-line"></i></span>
-            <h3>Top Apps Usage</h3>
-          </div>
-          <div class="summary-content">
-            <div class="app-ranking">
-              <div class="ranking-item" *ngFor="let item of aggregatedUsage; let i = index">
-                <div class="ranking-header">
-                  <span class="rank">#{{ i + 1 }}</span>
-                  <span class="app-name">{{ item.feature }}</span>
-                  <span class="app-time">{{ formatDuration(item.duration) }}</span>
-                </div>
-                <div class="rank-bar-bg">
-                  <div class="rank-bar-fill" [style.width.%]="(item.duration / aggregatedUsage[0].duration) * 100"></div>
-                </div>
-              </div>
-              <div *ngIf="aggregatedUsage.length === 0" class="empty-msg">
-                <p>No app data collected yet.</p>
-              </div>
+            <div class="title-group">
+               <h3>Historical Activity</h3>
+               <span class="subtitle">Last 100 app switches</span>
             </div>
+          </div>
+          <div class="table-container">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>Application</th>
+                  <th>Duration</th>
+                  <th>Time Recorded</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let log of usageLogs; trackBy: trackById">
+                  <td><span class="app-pill">{{ log.feature }}</span></td>
+                  <td class="bold-cell">{{ formatDuration(log.duration) }}</td>
+                  <td class="dim-cell">{{ formatTimestamp(log.createdAt) }}</td>
+                </tr>
+                <tr *ngIf="usageLogs.length === 0">
+                  <td colspan="3" class="empty-row">No history records found.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
