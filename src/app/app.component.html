@@ -88,22 +88,23 @@
         <span class="nav-icon"><i class="ri-settings-3-line"></i></span>
         <span class="nav-label" *ngIf="!isSidebarCollapsed">Management</span>
       </button>
-      <button class="nav-item" [class.active]="activeTab === 'dev'" (click)="setTab('dev')">
-        <span class="nav-icon"><i class="ri-braces-line"></i></span>
-        <span class="nav-label" *ngIf="!isSidebarCollapsed">Developer</span>
+      <button class="nav-item analytics-nav" [class.active]="activeTab === 'analytics'" (click)="setTab('analytics')">
+        <span class="nav-icon"><i class="ri-timer-2-line"></i></span>
+        <span class="nav-label" *ngIf="!isSidebarCollapsed">Screen Time</span>
       </button>
       <button class="nav-item gaming-nav" [class.active]="activeTab === 'gaming'" (click)="setTab('gaming')">
         <span class="nav-icon"><i class="ri-gamepad-line"></i></span>
         <span class="nav-label" *ngIf="!isSidebarCollapsed">Gaming</span>
       </button>
+      <button class="nav-item" [class.active]="activeTab === 'dev'" (click)="setTab('dev')">
+        <span class="nav-icon"><i class="ri-braces-line"></i></span>
+        <span class="nav-label" *ngIf="!isSidebarCollapsed">Developer</span>
+      </button>
       <button class="nav-item" [class.active]="activeTab === 'reports'" (click)="setTab('reports')">
         <span class="nav-icon"><i class="ri-file-chart-line"></i></span>
         <span class="nav-label" *ngIf="!isSidebarCollapsed">Reports</span>
       </button>
-      <button class="nav-item analytics-nav" [class.active]="activeTab === 'analytics'" (click)="setTab('analytics')">
-        <span class="nav-icon"><i class="ri-timer-2-line"></i></span>
-        <span class="nav-label" *ngIf="!isSidebarCollapsed">Analytics</span>
-      </button>
+
     </nav>
 
     <div class="sidebar-footer">
@@ -292,7 +293,46 @@
 
     <!-- Dashboard View -->
     <section class="dashboard-view" [class.hidden]="activeTab !== 'dashboard'">
+      
+      <!-- Pro Insights (Phase 9 Reloaded) -->
+      <div class="pro-insights-bar fade-in" *ngIf="systemStats">
+        <div class="pro-card score-card">
+          <div class="pro-label">PRODUCTIVITY</div>
+          <div class="pro-value-row">
+            <span class="pro-value" [style.color]="productivityScore > 80 ? 'var(--accent-green)' : 'var(--accent-blue)'">{{ productivityScore }}%</span>
+            <i class="ri-line-chart-line pro-trend" [style.color]="productivityScore > 80 ? 'var(--accent-green)' : 'var(--accent-blue)'"></i>
+          </div>
+          <div class="pro-sub">Dev tool efficiency</div>
+        </div>
+        
+        <div class="pro-card streak-card">
+          <div class="pro-label">STREAK</div>
+          <div class="pro-value-row">
+            <span class="pro-value">{{ userStreak }}</span>
+            <i class="ri-fire-fill streak-icon" [style.color]="userStreak > 0 ? '#FF7B00' : 'var(--text-tertiary)'"></i>
+          </div>
+          <div class="pro-sub">Consecutive active days</div>
+        </div>
+
+        <div class="pro-card insights-card">
+           <div class="pro-label">SMART ANALYTICS</div>
+           <div class="insight-ticker">
+              <div class="insight-item" *ngFor="let insight of productivityInsights">
+                <i [class]="insight.icon" style="margin-right: 8px; color: var(--primary);"></i>
+                <span>{{ insight.text }}</span>
+              </div>
+              <div class="insight-empty" *ngIf="productivityInsights.length === 0">
+                <i class="ri-pulse-line" style="margin-right: 8px;"></i> Analyzing patterns...
+              </div>
+           </div>
+        </div>
+      </div>
+
+      
+
+
       <div class="dashboard-grid" *ngIf="systemStats">
+
         <!-- CPU Gauge Card -->
         <div class="stat-card gauge-card fade-in" *ngIf="widgetVisibility.cpu">
           <div class="card-header">
@@ -1475,6 +1515,7 @@
         </div>
       </div>
 
+
       <!-- Summary Stats Banner -->
       <div class="analytics-banner fade-in" *ngIf="dailyUsage.length > 0">
         <div class="stat-box main">
@@ -1721,7 +1762,8 @@
         </div>
       </div>
     </div>
-  </main>
+    </main>
+
 
   <section class="loading" *ngIf="!systemStats">
     <div class="spinner"></div>

@@ -346,7 +346,14 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   private idleTimeout: any;
   private readonly IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes of inactivity
 
+  // Advanced Features (Phase 9)
+  productivityScore = 0;
+  userStreak = 0;
+  productivityInsights: { icon: string, text: string }[] = [];
+
+
   usageLogs: UsageLog[] = [];
+
   dailyUsage: DailyUsage[] = [];
   weeklyTrends: WeeklyTrend[] = [];
   totalDailyTime = 0;
@@ -504,6 +511,7 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.startTracking();
       this.fetchUsageLogs();
       this.fetchUsageLimits();
+      this.calculateAdvancedMetrics();
       this.showLimitReachedModal = false;
       this.showLimitWarningModal = false;
       this.cdr.markForCheck();
@@ -540,7 +548,9 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.usageLogs = await invoke<UsageLog[]>('get_usage_logs');
       await this.fetchDailyUsage();
       this.processAggregatedUsage();
+      this.calculateAdvancedMetrics();
       this.cdr.markForCheck();
+
     } catch (e) {
       console.error("Failed to fetch usage logs", e);
     }
@@ -555,6 +565,9 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
         this.dailyUsageChart.data.datasets[0].data = this.dailyUsage.slice(0, 8).map(u => u.totalDuration / 60); // mins
         this.dailyUsageChart.update();
       }
+      this.calculateAdvancedMetrics();
+      this.cdr.markForCheck();
+
     } catch (e) {
       console.error("Failed to fetch daily usage", e);
     }
@@ -671,7 +684,108 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
 
+  private readonly PRODUCTIVE_APPS = [
+    'code', 'rustc', 'node', 'python', 'terminal', 'cmd', 'powershell', 'npm', 'cargo', 'git', 
+    'intellij', 'pycharm', 'cursor', 'windsurf', 'zed', 'clion', 'sublime', 'neovim', 'go', 'docker', 'kubectl'
+  ];
+  private readonly UNPRODUCTIVE_APPS = [
+    'netflix', 'youtube', 'facebook', 'instagram', 'twitter', 'discord', 'steam', 'riotclient', 'originstub', 'battlenet', 'spotify'
+  ];
+
+  calculateAdvancedMetrics() {
+    if (!this.dailyUsage.length) return;
+
+    let productiveSeconds = 0;
+    let unproductiveSeconds = 0;
+    let totalSeconds = 0;
+
+    this.dailyUsage.forEach(u => {
+      const name = u.feature.toLowerCase();
+      totalSeconds += u.totalDuration;
+      
+      if (this.PRODUCTIVE_APPS.some(a => name.includes(a))) {
+        productiveSeconds += u.totalDuration;
+      } else if (this.UNPRODUCTIVE_APPS.some(a => name.includes(a))) {
+        unproductiveSeconds += u.totalDuration * 0.5; // less penalty
+      }
+    });
+
+    // Score: 100 based. (Base 50 to avoid total zero discouragement)
+    const factor = totalSeconds > 0 ? (productiveSeconds / totalSeconds) : 0;
+    this.productivityScore = Math.floor(50 + (factor * 50));
+    if (this.productivityScore > 100) this.productivityScore = 100;
+
+    // Calculate Streak
+    this.calculateStreak();
+    
+    // Generate Insights
+    this.generateInsights();
+  }
+
+  calculateStreak() {
+    if (!this.weeklyTrends.length) {
+      this.userStreak = 0;
+      return;
+    }
+    
+    // Simple streak: consecutive days with any activity
+    let streak = 0;
+    const sorted = [...this.weeklyTrends].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    // Check if streak is active (activity today or yesterday)
+    let hasRecent = sorted.some(s => s.date === today || s.date === yesterday);
+    if (!hasRecent) {
+      this.userStreak = 0;
+      return;
+    }
+
+    for (let i = 0; i < sorted.length; i++) {
+        streak++;
+        // Check if day before exists
+        if (i < sorted.length - 1) {
+            const currentDay = new Date(sorted[i].date);
+            const prevDay = new Date(sorted[i+1].date);
+            const diffDays = (currentDay.getTime() - prevDay.getTime()) / 86400000;
+            if (diffDays > 1.1) break; // gap found
+        }
+    }
+    this.userStreak = streak;
+  }
+
+  generateInsights() {
+    const insights: { icon: string, text: string }[] = [];
+    
+    // Time of day analysis
+    const nightLogs = this.usageLogs.filter(l => {
+        const hour = new Date(l.createdAt * 1000).getHours();
+        return hour >= 22 || hour <= 4;
+    });
+
+    if (nightLogs.length > (this.usageLogs.length * 0.3) && this.usageLogs.length > 5) {
+        insights.push({ icon: 'ri-moon-line', text: "Late Night Dev: You are most productive at night." });
+    }
+
+    if (this.productivityScore > 85) {
+        insights.push({ icon: 'ri-flashlight-line', text: "Flow Master: High concentration levels today!" });
+    } else if (this.productivityScore < 60 && this.totalDailyTime > 3600) {
+        insights.push({ icon: 'ri-seedling-line', text: "Tip: Mix deep work with breaks to boost focus." });
+    }
+
+    if (this.userStreak >= 3) {
+        insights.push({ icon: 'ri-medal-2-line', text: `${this.userStreak} day activity streak maintained!` });
+    } else if (this.userStreak > 0) {
+        insights.push({ icon: 'ri-fire-line', text: `Keep it up! ${this.userStreak} day streak.` });
+    }
+
+    this.productivityInsights = insights.slice(0, 3);
+  }
+
+
   processAggregatedUsage() {
+
     const map = new Map<string, number>();
     this.usageLogs.forEach(log => {
       const current = map.get(log.feature) || 0;
@@ -1312,7 +1426,9 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     this.lastTabChangeTime = 0; // Pause timer
   }
 
+
   setTab(tab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' | 'analytics') {
+
     // 1. Record usage of previous tab (only if active)
     this.recordCurrentUsage();
 

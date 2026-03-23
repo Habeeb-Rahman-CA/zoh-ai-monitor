@@ -602,8 +602,131 @@
   border-radius: 50%;
 }
 
+/* ── Pro Insights Bar (Phase 9) ────────────────────────── */
+.pro-insights-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.pro-card {
+  background: var(--fluent-layer-1);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--fluent-stroke-card);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s var(--ease-decel);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-height: 100px;
+}
+
+.pro-card:hover {
+  background: var(--fluent-layer-2);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pro-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+}
+
+.pro-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+}
+
+.pro-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: 'Segoe UI Variable Display', system-ui, sans-serif;
+}
+
+.pro-trend, .streak-icon {
+  font-size: 1.4rem;
+  opacity: 0.9;
+}
+
+.pro-sub {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+
+
+.insight-ticker {
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.insight-item {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  animation: insightScroll 15s infinite;
+}
+
+.insight-empty {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.pro-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: transparent;
+}
+
+.score-card::after { background: linear-gradient(90deg, var(--accent-blue), var(--accent-green)); }
+
+.streak-card::after { background: var(--accent-yellow); }
+.insights-card::after { background: var(--primary); }
+
+
+
+@keyframes insightScroll {
+  0%, 30% { transform: translateY(0); }
+  33%, 63% { transform: translateY(-44px); }
+  66%, 96% { transform: translateY(-88px); }
+  100% { transform: translateY(0); }
+}
+
+.insight-item {
+  animation: insightScroll 15s infinite;
+}
+
+
 /* ── Dashboard Grid ────────────────────────────────────── */
+
 .dashboard-grid {
+
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1rem;
