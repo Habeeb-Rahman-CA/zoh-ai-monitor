@@ -6046,3 +6046,122 @@ h3 {
 .dismiss-btn.secondary:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* ── Restriction System (Phase 6) ───────────────────────── */
+.restriction-type-select {
+  display: flex;
+  gap: 0.65rem;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.radio-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--fluent-stroke);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-standard);
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.radio-item i {
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
+.radio-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.radio-item.selected {
+  background: var(--accent-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(96, 205, 255, 0.1);
+}
+
+.radio-item.selected i {
+  color: var(--primary);
+  opacity: 1;
+}
+
+.type-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.type-badge.hard {
+  background: rgba(196, 43, 28, 0.15);
+  color: var(--accent-red);
+}
+
+/* ── Hard Block Modal ────────────────────────────────────── */
+.limit-modal-overlay.hard-lock {
+  background: rgba(15, 5, 5, 0.94);
+}
+
+.limit-card-reached.hard-lock {
+  border: 1px solid rgba(196, 43, 28, 0.4);
+  background: #110808;
+  box-shadow: 0 25px 70px -12px rgba(196, 43, 28, 0.3);
+}
+
+.card-glow.hard-lock {
+  background: radial-gradient(circle, rgba(196, 43, 28, 0.18) 0%, transparent 65%);
+}
+
+.icon-pulse.hard-lock {
+  background: rgba(196, 43, 28, 0.2);
+  color: #FF5E5E;
+  animation: pulse-deep-red 1.5s infinite;
+}
+
+@keyframes pulse-deep-red {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(196, 43, 28, 0.7); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(196, 43, 28, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(196, 43, 28, 0); }
+}
+
+.modal-actions.horizontal {
+  flex-direction: row;
+  gap: 0.75rem;
+}
+
+.dismiss-btn.critical {
+  background: var(--accent-red);
+  color: #fff !important;
+  font-weight: 700;
+  flex: 1.5;
+  box-shadow: 0 4px 15px rgba(196, 43, 28, 0.3);
+}
+
+.dismiss-btn.critical:hover {
+  background: #e33b2e;
+  transform: translateY(-1px);
+}
+
+.dismiss-btn.critical i {
+  font-size: 1.1rem;
+}
+
+.dismiss-btn.secondary {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-tertiary) !important;
+}

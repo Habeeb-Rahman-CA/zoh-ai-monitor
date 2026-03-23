@@ -705,6 +705,7 @@ struct WeeklyTrend {
 struct AppLimit {
     feature: String,
     daily_limit: u64, // seconds
+    restriction_type: String, // "soft" | "hard"
 }
 
 #[tauri::command]
@@ -783,11 +784,12 @@ fn get_weekly_trends(state: State<'_, Arc<AppState>>) -> Result<Vec<WeeklyTrend>
 #[tauri::command]
 fn get_usage_limits(state: State<'_, Arc<AppState>>) -> Result<Vec<AppLimit>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db.prepare("SELECT feature, daily_limit FROM usage_limits").map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare("SELECT feature, daily_limit, restriction_type FROM usage_limits").map_err(|e| e.to_string())?;
     let rows = stmt.query_map([], |row| {
         Ok(AppLimit {
             feature: row.get(0)?,
             daily_limit: row.get(1)?,
+            restriction_type: row.get(2).unwrap_or_else(|_| "soft".to_string()),
         })
     }).map_err(|e| e.to_string())?;
 
@@ -799,11 +801,11 @@ fn get_usage_limits(state: State<'_, Arc<AppState>>) -> Result<Vec<AppLimit>, St
 }
 
 #[tauri::command]
-fn save_usage_limit(state: State<'_, Arc<AppState>>, feature: String, daily_limit: u64) -> Result<(), String> {
+fn save_usage_limit(state: State<'_, Arc<AppState>>, feature: String, daily_limit: u64, restriction_type: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
-        "INSERT OR REPLACE INTO usage_limits (user_id, feature, daily_limit) VALUES (?1, ?2, ?3)",
-        params!["system_user", feature, daily_limit],
+        "INSERT OR REPLACE INTO usage_limits (user_id, feature, daily_limit, restriction_type) VALUES (?1, ?2, ?3, ?4)",
+        params!["system_user", feature, daily_limit, restriction_type],
     ).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -1531,10 +1533,14 @@ pub fn run() {
                     user_id TEXT NOT NULL,
                     feature TEXT NOT NULL,
                     daily_limit INTEGER NOT NULL,
+                    restriction_type TEXT DEFAULT 'soft',
                     UNIQUE(user_id, feature)
                 )",
                 [],
-            ).expect("Failed to create table");
+            ).expect("Failed to create usage_limits table");
+
+            // Migration: Add restriction_type if it doesn't exist
+            let _ = conn.execute("ALTER TABLE usage_limits ADD COLUMN restriction_type TEXT DEFAULT 'soft'", []);
 
             let app_state = Arc::new(AppState {
                 sys: Mutex::new(System::new_all()),
@@ -1622,13 +1628,13 @@ pub fn run() {
                                 let total_today = past_today + elapsed as i64;
 
                                 // Get limit for this feature
-                                let limit: Option<u64> = db.query_row(
-                                    "SELECT daily_limit FROM usage_limits WHERE feature = ?1",
+                                let limit_data: Option<(u64, String)> = db.query_row(
+                                    "SELECT daily_limit, restriction_type FROM usage_limits WHERE feature = ?1",
                                     [&current_app],
-                                    |r| r.get(0)
+                                    |r| Ok((r.get(0)?, r.get(1)?))
                                 ).ok();
 
-                                if let Some(l) = limit {
+                                if let Some((l, rtype)) = limit_data {
                                     use tauri::Emitter;
                                     
                                     // 100% reached
@@ -1636,7 +1642,8 @@ pub fn run() {
                                         if !sent_alerts.contains(&(date_str.clone(), current_app.clone(), 100)) {
                                             let _ = app_handle.emit("limit_reached", AppLimit {
                                                 feature: current_app.clone(),
-                                                daily_limit: l
+                                                daily_limit: l,
+                                                restriction_type: rtype.clone(),
                                             });
                                             sent_alerts.insert((date_str.clone(), current_app.clone(), 100));
                                         }
@@ -1646,7 +1653,8 @@ pub fn run() {
                                         if !sent_alerts.contains(&(date_str.clone(), current_app.clone(), 80)) {
                                             let _ = app_handle.emit("limit_warning", AppLimit {
                                                 feature: current_app.clone(),
-                                                daily_limit: l
+                                                daily_limit: l,
+                                                restriction_type: rtype,
                                             });
                                             sent_alerts.insert((date_str.clone(), current_app.clone(), 80));
                                         }

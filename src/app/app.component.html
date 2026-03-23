@@ -1553,6 +1553,14 @@
                 <input type="number" [(ngModel)]="newLimitMins" min="1">
                 <span>mins</span>
              </div>
+             <div class="restriction-type-select">
+                <div class="radio-item" (click)="newLimitType = 'soft'" [class.selected]="newLimitType === 'soft'">
+                   <i class="ri-notification-3-line"></i> Soft
+                </div>
+                <div class="radio-item" (click)="newLimitType = 'hard'" [class.selected]="newLimitType === 'hard'">
+                   <i class="ri-lock-2-line"></i> Hard
+                </div>
+             </div>
              <button class="save-limit" (click)="saveUsageLimit()">Save Limit</button>
           </div>
 
@@ -1560,7 +1568,7 @@
              <div class="limit-item" *ngFor="let limit of usageLimits">
                 <div class="limit-info">
                    <span class="limit-app">{{ limit.feature }}</span>
-                   <span class="limit-val">{{ limit.dailyLimit / 60 }} mins limit</span>
+                   <span class="limit-val">{{ limit.dailyLimit / 60 }} mins · <span class="type-badge" [class.hard]="limit.restrictionType === 'hard'">{{ limit.restrictionType }}</span></span>
                 </div>
                 <button class="delete-limit" (click)="deleteUsageLimit(limit.feature)">
                    <i class="ri-delete-bin-line"></i>
@@ -1632,20 +1640,31 @@
     </div>
 
     <!-- Limit Reached Modal -->
-    <div class="limit-modal-overlay" *ngIf="showLimitReachedModal && reachedLimit">
-       <div class="limit-card-reached">
-          <div class="card-glow"></div>
+    <div class="limit-modal-overlay" [class.hard-lock]="reachedLimit?.restrictionType === 'hard'" *ngIf="showLimitReachedModal && reachedLimit">
+       <div class="limit-card-reached" [class.hard-lock]="reachedLimit.restrictionType === 'hard'">
+          <div class="card-glow" [class.hard-lock]="reachedLimit.restrictionType === 'hard'"></div>
           <div class="reached-content">
-             <div class="icon-pulse">
-                <i class="ri-alarm-warning-line"></i>
+             <div class="icon-pulse" [class.hard-lock]="reachedLimit.restrictionType === 'hard'">
+                <i [class]="reachedLimit.restrictionType === 'hard' ? 'ri-lock-star-fill' : 'ri-alarm-warning-line'"></i>
              </div>
-             <h2>Limit Reached!</h2>
+             <h2>{{ reachedLimit.restrictionType === 'hard' ? 'Access Denied' : 'Limit Reached!' }}</h2>
              <p>You've reached your daily limit for <strong>{{ reachedLimit.feature }}</strong></p>
+             
              <div class="limit-status">
-                <span class="limit-label">ALLOWED</span>
-                <span class="limit-value">{{ reachedLimit.dailyLimit / 60 }} mins</span>
+                <span class="limit-label">RESTRICTION</span>
+                <span class="limit-value" style="text-transform: uppercase;">{{ reachedLimit.restrictionType }} BLOCK</span>
              </div>
-             <button class="dismiss-btn" (click)="showLimitReachedModal = false">I understand</button>
+
+             <div class="modal-actions" *ngIf="reachedLimit.restrictionType === 'soft'">
+                <button class="dismiss-btn" (click)="showLimitReachedModal = false">I understand</button>
+             </div>
+
+             <div class="modal-actions horizontal" *ngIf="reachedLimit.restrictionType === 'hard'">
+                <button class="dismiss-btn secondary" (click)="showLimitReachedModal = false">Acknowledge</button>
+                <button class="dismiss-btn critical" (click)="killAppByName(reachedLimit.feature)">
+                   <i class="ri-close-circle-line"></i> Force Quit App
+                </button>
+             </div>
           </div>
        </div>
     </div>

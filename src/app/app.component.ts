@@ -205,6 +205,7 @@ interface WeeklyTrend {
 interface AppLimit {
   feature: string;
   dailyLimit: number; // seconds
+  restrictionType: 'soft' | 'hard';
 }
 
 
@@ -355,6 +356,7 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   limitFormVisible = false;
   newLimitFeature = '';
   newLimitMins = 60;
+  newLimitType: 'soft' | 'hard' = 'soft';
 
   lastMgmtRefresh = 0;
   isLoadingMgmt = false;
@@ -569,8 +571,13 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.newLimitFeature) return;
     try {
       const limitSeconds = this.newLimitMins * 60;
-      await invoke('save_usage_limit', { feature: this.newLimitFeature, dailyLimit: limitSeconds });
+      await invoke('save_usage_limit', { 
+        feature: this.newLimitFeature, 
+        dailyLimit: limitSeconds,
+        restrictionType: this.newLimitType 
+      });
       this.newLimitFeature = '';
+      this.newLimitType = 'soft';
       this.limitFormVisible = false;
       this.fetchUsageLimits();
     } catch (e) {
@@ -657,6 +664,21 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       .map(([feature, duration]) => ({ feature, duration }))
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 10);
+  }
+
+
+  async killAppByName(name: string) {
+    if (!this.systemStats) return;
+    const targets = this.systemStats.processes.filter(p => p.name.toLowerCase() === name.toLowerCase());
+    for (const p of targets) {
+      try {
+        await invoke('kill_process', { pid: p.pid });
+      } catch (e) {
+        console.error(`Failed to kill ${p.pid}`, e);
+      }
+    }
+    this.showLimitReachedModal = false;
+    this.cdr.markForCheck();
   }
 
 
