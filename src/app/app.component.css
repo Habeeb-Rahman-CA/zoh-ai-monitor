@@ -5956,3 +5956,93 @@ h3 {
   color: #fff;
   font-family: 'Segoe UI', monospace;
 }
+
+/* Warning Modal Styling (80%) */
+.limit-modal-overlay.warning {
+  background: rgba(10, 20, 30, 0.85); /* Slightly blueish backdrop */
+}
+
+.limit-card-reached.warning {
+  border: 1px solid rgba(96, 205, 255, 0.3);
+}
+
+.card-glow.warning {
+  background: radial-gradient(circle, rgba(96, 205, 255, 0.1) 0%, transparent 60%);
+}
+
+.icon-pulse.warning {
+  background: rgba(96, 205, 255, 0.15);
+  color: #60CDFF;
+  animation: pulse-blue 2s infinite;
+}
+
+@keyframes pulse-blue {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(96, 205, 255, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 15px rgba(96, 205, 255, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(96, 205, 255, 0);
+  }
+}
+
+.wellbeing-progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.wb-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.wb-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #60CDFF, #3A8DFF);
+  border-radius: 4px;
+  transition: width 1s ease-out;
+}
+
+.wb-label {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+
+.dismiss-btn.primary {
+  flex: 1;
+  background: #60CDFF;
+  color: #000;
+  font-weight: 700;
+}
+
+.dismiss-btn.secondary {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dismiss-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

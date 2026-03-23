@@ -1588,26 +1588,38 @@ pub fn run() {
                 let mut last_change = std::time::Instant::now();
                 let mut check_counter = 0;
                 
+                // Track sent alerts: (date, feature, threshold_type)
+                // threshold_type: 80 or 100
+                let mut sent_alerts: std::collections::HashSet<(String, String, u8)> = std::collections::HashSet::new();
+                let mut last_alert_date = chrono::Local::now().format("%Y-%m-%d").to_string();
+
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     let now_app = get_active_app();
                     
                     let elapsed = last_change.elapsed().as_secs();
 
-                    // Every 5 seconds, check against limits
+                    // Every 30 seconds, check against limits
                     check_counter += 1;
-                    if check_counter >= 5 {
+                    if check_counter >= 30 {
                         check_counter = 0;
                         if let Ok(db) = thread_state_tracking.db.lock() {
-                            // Sum usage today + current elapsed
+                            let date_str = chrono::Local::now().format("%Y-%m-%d").to_string();
+                            
+                            // Reset tracking on new day
+                            if date_str != last_alert_date {
+                                sent_alerts.clear();
+                                last_alert_date = date_str.clone();
+                            }
+
                             let mut stmt = db.prepare(
                                 "SELECT SUM(duration) FROM usage_logs 
                                  WHERE feature = ?1 AND date(created_at, 'unixepoch', 'localtime') = date('now', 'localtime')"
                             ).ok();
                             
                             if let Some(mut stmt) = stmt {
-                                let past_today: u64 = stmt.query_row([&current_app], |r| r.get(0)).unwrap_or(0);
-                                let total_today = past_today + elapsed;
+                                let past_today: i64 = stmt.query_row([&current_app], |r| r.get(0)).unwrap_or(0);
+                                let total_today = past_today + elapsed as i64;
 
                                 // Get limit for this feature
                                 let limit: Option<u64> = db.query_row(
@@ -1617,12 +1629,27 @@ pub fn run() {
                                 ).ok();
 
                                 if let Some(l) = limit {
-                                    if total_today >= l {
-                                        use tauri::Emitter;
-                                        let _ = app_handle.emit("limit_reached", AppLimit {
-                                            feature: current_app.clone(),
-                                            daily_limit: l
-                                        });
+                                    use tauri::Emitter;
+                                    
+                                    // 100% reached
+                                    if total_today >= l as i64 {
+                                        if !sent_alerts.contains(&(date_str.clone(), current_app.clone(), 100)) {
+                                            let _ = app_handle.emit("limit_reached", AppLimit {
+                                                feature: current_app.clone(),
+                                                daily_limit: l
+                                            });
+                                            sent_alerts.insert((date_str.clone(), current_app.clone(), 100));
+                                        }
+                                    } 
+                                    // 80% warning
+                                    else if total_today >= (l as f64 * 0.8) as i64 {
+                                        if !sent_alerts.contains(&(date_str.clone(), current_app.clone(), 80)) {
+                                            let _ = app_handle.emit("limit_warning", AppLimit {
+                                                feature: current_app.clone(),
+                                                daily_limit: l
+                                            });
+                                            sent_alerts.insert((date_str.clone(), current_app.clone(), 80));
+                                        }
                                     }
                                 }
                             }

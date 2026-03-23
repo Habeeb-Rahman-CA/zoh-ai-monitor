@@ -349,7 +349,9 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
 
   usageLimits: AppLimit[] = [];
   showLimitReachedModal = false;
+  showLimitWarningModal = false;
   reachedLimit: AppLimit | null = null;
+  warningLimit: AppLimit | null = null;
   limitFormVisible = false;
   newLimitFeature = '';
   newLimitMins = 60;
@@ -475,7 +477,17 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     listen<AppLimit>('limit_reached', (event: any) => {
       this.reachedLimit = event.payload;
       this.showLimitReachedModal = true;
+      this.showLimitWarningModal = false; // Close warning if reached hit
       this.cdr.markForCheck();
+    });
+
+    listen<AppLimit>('limit_warning', (event: any) => {
+      // Only show warning if reached hasn't been shown
+      if (!this.showLimitReachedModal) {
+        this.warningLimit = event.payload;
+        this.showLimitWarningModal = true;
+        this.cdr.markForCheck();
+      }
     });
 
     // Minimum splash duration 2.5s

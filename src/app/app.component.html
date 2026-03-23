@@ -1605,6 +1605,32 @@
       </div>
     </section>
 
+    <!-- Limit Warning Modal (80%) -->
+    <div class="limit-modal-overlay warning" *ngIf="showLimitWarningModal && warningLimit">
+       <div class="limit-card-reached warning">
+          <div class="card-glow warning"></div>
+          <div class="reached-content">
+             <div class="icon-pulse warning">
+                <i class="ri-history-line"></i>
+             </div>
+             <h2>Time Check</h2>
+             <p>You've used <strong>80%</strong> of your limit for <strong>{{ warningLimit.feature }}</strong></p>
+             
+             <div class="wellbeing-progress">
+                <div class="wb-track">
+                   <div class="wb-fill" style="width: 80%"></div>
+                </div>
+                <span class="wb-label">Almost there ({{ (warningLimit.dailyLimit * 0.8) / 60 }} / {{ warningLimit.dailyLimit / 60 }} mins)</span>
+             </div>
+
+             <div class="modal-actions">
+                <button class="dismiss-btn secondary" (click)="showLimitWarningModal = false">Ignore</button>
+                <button class="dismiss-btn primary" (click)="showLimitWarningModal = false">Take a Break</button>
+             </div>
+          </div>
+       </div>
+    </div>
+
     <!-- Limit Reached Modal -->
     <div class="limit-modal-overlay" *ngIf="showLimitReachedModal && reachedLimit">
        <div class="limit-card-reached">
