@@ -1531,6 +1531,47 @@
           </div>
         </div>
 
+        <!-- App Usage Limits -->
+        <div class="stat-card limits-card fade-in">
+          <div class="card-header">
+            <span class="icon" style="color: #FF6B6B;"><i class="ri-forbid-2-line"></i></span>
+            <div class="title-group">
+               <h3>Active Usage Limits</h3>
+               <span class="subtitle">Control your digital wellbeing</span>
+            </div>
+            <button class="add-limit-btn" (click)="limitFormVisible = !limitFormVisible">
+               <i class="ri-add-line"></i>
+            </button>
+          </div>
+          
+          <div class="limit-form" *ngIf="limitFormVisible">
+             <input type="text" [(ngModel)]="newLimitFeature" list="processSuggestions" placeholder="Select or type process name...">
+             <datalist id="processSuggestions">
+                <option *ngFor="let name of uniqueProcessNames" [value]="name"></option>
+             </datalist>
+             <div class="input-group">
+                <input type="number" [(ngModel)]="newLimitMins" min="1">
+                <span>mins</span>
+             </div>
+             <button class="save-limit" (click)="saveUsageLimit()">Save Limit</button>
+          </div>
+
+          <div class="limits-list">
+             <div class="limit-item" *ngFor="let limit of usageLimits">
+                <div class="limit-info">
+                   <span class="limit-app">{{ limit.feature }}</span>
+                   <span class="limit-val">{{ limit.dailyLimit / 60 }} mins limit</span>
+                </div>
+                <button class="delete-limit" (click)="deleteUsageLimit(limit.feature)">
+                   <i class="ri-delete-bin-line"></i>
+                </button>
+             </div>
+             <div class="empty-limits" *ngIf="usageLimits.length === 0">
+                <p>No limits set yet.</p>
+             </div>
+          </div>
+        </div>
+
         <!-- Detailed Logs -->
         <div class="stat-card logs-card-new fade-in">
           <div class="card-header">
@@ -1563,6 +1604,25 @@
         </div>
       </div>
     </section>
+
+    <!-- Limit Reached Modal -->
+    <div class="limit-modal-overlay" *ngIf="showLimitReachedModal && reachedLimit">
+       <div class="limit-card-reached">
+          <div class="card-glow"></div>
+          <div class="reached-content">
+             <div class="icon-pulse">
+                <i class="ri-alarm-warning-line"></i>
+             </div>
+             <h2>Limit Reached!</h2>
+             <p>You've reached your daily limit for <strong>{{ reachedLimit.feature }}</strong></p>
+             <div class="limit-status">
+                <span class="limit-label">ALLOWED</span>
+                <span class="limit-value">{{ reachedLimit.dailyLimit / 60 }} mins</span>
+             </div>
+             <button class="dismiss-btn" (click)="showLimitReachedModal = false">I understand</button>
+          </div>
+       </div>
+    </div>
 
 
     <!-- Custom Update Modal -->

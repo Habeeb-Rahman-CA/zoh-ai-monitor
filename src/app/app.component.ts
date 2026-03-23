@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit, Vie
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Chart, registerables } from 'chart.js';
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import { jsPDF } from 'jspdf';
@@ -201,6 +202,11 @@ interface WeeklyTrend {
   totalDuration: number;
 }
 
+interface AppLimit {
+  feature: string;
+  dailyLimit: number; // seconds
+}
+
 
 @Component({
   selector: "app-root",
@@ -341,6 +347,13 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   dailyUsageChart: Chart | null = null;
   weeklyTrendChart: Chart | null = null;
 
+  usageLimits: AppLimit[] = [];
+  showLimitReachedModal = false;
+  reachedLimit: AppLimit | null = null;
+  limitFormVisible = false;
+  newLimitFeature = '';
+  newLimitMins = 60;
+
   lastMgmtRefresh = 0;
   isLoadingMgmt = false;
   mgmtSubTab: 'services' | 'startup' = 'services';
@@ -384,6 +397,11 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   p_filteredProcesses: ProcessInfo[] = [];
   p_filteredServices: ServiceInfo[] = [];
   p_filteredStartupApps: StartupInfo[] = [];
+
+  get uniqueProcessNames(): string[] {
+    if (!this.systemStats) return [];
+    return Array.from(new Set(this.systemStats.processes.map(p => p.name))).sort((a,b) => a.localeCompare(b));
+  }
 
   // Dev Advisor State
   devAdvices: DevAdvice[] = [];
@@ -451,6 +469,14 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     await this.fetchStats();
     this.fetchPublicIp();
     this.fetchUsageLogs();
+    this.fetchUsageLimits();
+
+    // Listen for limit events from backend
+    listen<AppLimit>('limit_reached', (event: any) => {
+      this.reachedLimit = event.payload;
+      this.showLimitReachedModal = true;
+      this.cdr.markForCheck();
+    });
 
     // Minimum splash duration 2.5s
     setTimeout(() => {
@@ -516,6 +542,36 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       }
     } catch (e) {
       console.error("Failed to fetch weekly trends", e);
+    }
+  }
+
+  async fetchUsageLimits() {
+    try {
+      this.usageLimits = await invoke<AppLimit[]>('get_usage_limits');
+    } catch (e) {
+      console.error("Failed to fetch usage limits", e);
+    }
+  }
+
+  async saveUsageLimit() {
+    if (!this.newLimitFeature) return;
+    try {
+      const limitSeconds = this.newLimitMins * 60;
+      await invoke('save_usage_limit', { feature: this.newLimitFeature, dailyLimit: limitSeconds });
+      this.newLimitFeature = '';
+      this.limitFormVisible = false;
+      this.fetchUsageLimits();
+    } catch (e) {
+      console.error("Failed to save usage limit", e);
+    }
+  }
+
+  async deleteUsageLimit(email: string) { // Wait, why email? Ah, it's feature name
+    try {
+      await invoke('delete_usage_limit', { feature: email });
+      this.fetchUsageLimits();
+    } catch (e) {
+      console.error("Failed to delete usage limit", e);
     }
   }
 
@@ -1158,6 +1214,7 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.fetchUsageLogs();
       this.fetchDailyUsage();
       this.fetchWeeklyTrends();
+      this.fetchUsageLimits();
       setTimeout(() => this.initAnalyticsCharts(), 100);
     }
     this.updateCaches();

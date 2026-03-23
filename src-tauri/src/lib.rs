@@ -693,11 +693,18 @@ struct DailyUsage {
     total_duration: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WeeklyTrend {
     date: String,
     total_duration: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AppLimit {
+    feature: String,
+    daily_limit: u64, // seconds
 }
 
 #[tauri::command]
@@ -772,6 +779,42 @@ fn get_weekly_trends(state: State<'_, Arc<AppState>>) -> Result<Vec<WeeklyTrend>
     }
     Ok(results)
 }
+
+#[tauri::command]
+fn get_usage_limits(state: State<'_, Arc<AppState>>) -> Result<Vec<AppLimit>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare("SELECT feature, daily_limit FROM usage_limits").map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], |row| {
+        Ok(AppLimit {
+            feature: row.get(0)?,
+            daily_limit: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row.map_err(|e| e.to_string())?);
+    }
+    Ok(results)
+}
+
+#[tauri::command]
+fn save_usage_limit(state: State<'_, Arc<AppState>>, feature: String, daily_limit: u64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute(
+        "INSERT OR REPLACE INTO usage_limits (user_id, feature, daily_limit) VALUES (?1, ?2, ?3)",
+        params!["system_user", feature, daily_limit],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_usage_limit(state: State<'_, Arc<AppState>>, feature: String) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM usage_limits WHERE feature = ?1", [feature]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 
 #[tauri::command]
 async fn save_export(
@@ -1482,6 +1525,17 @@ pub fn run() {
                 [],
             ).expect("Failed to create table");
 
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS usage_limits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    feature TEXT NOT NULL,
+                    daily_limit INTEGER NOT NULL,
+                    UNIQUE(user_id, feature)
+                )",
+                [],
+            ).expect("Failed to create table");
+
             let app_state = Arc::new(AppState {
                 sys: Mutex::new(System::new_all()),
                 disks: Mutex::new(Disks::new_with_refreshed_list()),
@@ -1528,15 +1582,52 @@ pub fn run() {
 
             // App Tracking Thread
             let thread_state_tracking = app_state.clone();
+            let app_handle = app.handle().clone();
             std::thread::spawn(move || {
                 let mut current_app = get_active_app();
                 let mut last_change = std::time::Instant::now();
+                let mut check_counter = 0;
                 
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     let now_app = get_active_app();
                     
                     let elapsed = last_change.elapsed().as_secs();
+
+                    // Every 5 seconds, check against limits
+                    check_counter += 1;
+                    if check_counter >= 5 {
+                        check_counter = 0;
+                        if let Ok(db) = thread_state_tracking.db.lock() {
+                            // Sum usage today + current elapsed
+                            let mut stmt = db.prepare(
+                                "SELECT SUM(duration) FROM usage_logs 
+                                 WHERE feature = ?1 AND date(created_at, 'unixepoch', 'localtime') = date('now', 'localtime')"
+                            ).ok();
+                            
+                            if let Some(mut stmt) = stmt {
+                                let past_today: u64 = stmt.query_row([&current_app], |r| r.get(0)).unwrap_or(0);
+                                let total_today = past_today + elapsed;
+
+                                // Get limit for this feature
+                                let limit: Option<u64> = db.query_row(
+                                    "SELECT daily_limit FROM usage_limits WHERE feature = ?1",
+                                    [&current_app],
+                                    |r| r.get(0)
+                                ).ok();
+
+                                if let Some(l) = limit {
+                                    if total_today >= l {
+                                        use tauri::Emitter;
+                                        let _ = app_handle.emit("limit_reached", AppLimit {
+                                            feature: current_app.clone(),
+                                            daily_limit: l
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // If app changed OR it's been 60 seconds, record it
                     if now_app != current_app || elapsed >= 60 {
@@ -1579,7 +1670,10 @@ pub fn run() {
             save_usage,
             get_usage_logs,
             get_daily_usage,
-            get_weekly_trends
+            get_weekly_trends,
+            get_usage_limits,
+            save_usage_limit,
+            delete_usage_limit
         ])
 
         .run(tauri::generate_context!())
