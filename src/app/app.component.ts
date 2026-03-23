@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit, ViewChildren, QueryList, ChangeDetectionStrategy, ChangeDetectorRef } from "@angular/core";
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit, ViewChildren, QueryList, ChangeDetectionStrategy, ChangeDetectorRef, HostListener } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { invoke } from "@tauri-apps/api/core";
@@ -337,8 +337,15 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   // Management State
   activeTab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' | 'analytics' = 'dashboard';
   lastTabChangeTime = Date.now();
-  windowFocusStartTime = Date.now();
-  userId = 'default_user'; // Could be fetched from a service later
+  userId = 'default_user';
+  
+  // Accuracy Tracking state
+  isAppFocused = true;
+  isAppVisible = true;
+  isAppIdle = false;
+  private idleTimeout: any;
+  private readonly IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes of inactivity
+
   usageLogs: UsageLog[] = [];
   dailyUsage: DailyUsage[] = [];
   weeklyTrends: WeeklyTrend[] = [];
@@ -493,6 +500,8 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     });
 
     listen('day_reset', () => {
+      this.recordCurrentUsage();
+      this.startTracking();
       this.fetchUsageLogs();
       this.fetchUsageLimits();
       this.showLimitReachedModal = false;
@@ -517,7 +526,10 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       }
       this.cdr.markForCheck(); // Trigger manual CD update
     }, 1000);
+
+    this.resetIdleTimer();
   }
+
 
 
 
@@ -794,10 +806,15 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy() {
+    this.recordCurrentUsage();
     if (this.interval) {
       clearInterval(this.interval);
     }
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+    }
   }
+
 
   async fetchStats() {
     try {
@@ -1223,24 +1240,89 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // --- Management Methods ---
 
-  setTab(tab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' | 'analytics') {
+  @HostListener('window:focus')
+  onFocus() {
+    this.isAppFocused = true;
+    this.startTracking();
+    this.cdr.markForCheck();
+  }
+
+  @HostListener('window:blur')
+  onBlur() {
+    this.recordCurrentUsage();
+    this.isAppFocused = false;
+    this.cdr.markForCheck();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+      this.recordCurrentUsage();
+      this.isAppVisible = false;
+    } else {
+      this.isAppVisible = true;
+      this.startTracking();
+    }
+    this.cdr.markForCheck();
+  }
+
+  @HostListener('window:mousemove')
+  @HostListener('window:keydown')
+  onUserActivity() {
+    this.resetIdleTimer();
+  }
+
+  private resetIdleTimer() {
+    if (this.isAppIdle) {
+      this.isAppIdle = false;
+      this.startTracking();
+    }
+    clearTimeout(this.idleTimeout);
+    this.idleTimeout = setTimeout(() => this.goIdle(), this.IDLE_THRESHOLD);
+  }
+
+  private goIdle() {
+    this.isAppIdle = true;
+    this.recordCurrentUsage();
+    this.cdr.markForCheck();
+  }
+
+  private startTracking() {
+    if (this.isAppFocused && this.isAppVisible && !this.isAppIdle) {
+      if (this.lastTabChangeTime === 0) {
+        this.lastTabChangeTime = Date.now();
+      }
+    }
+  }
+
+  private recordCurrentUsage() {
+    if (!this.lastTabChangeTime || this.lastTabChangeTime === 0) return;
+    
     const now = Date.now();
     const duration = Math.floor((now - this.lastTabChangeTime) / 1000);
     
-    // 1. Record usage of previous tab
     if (duration > 0) {
       invoke('save_usage', { 
         userId: this.userId, 
         feature: this.activeTab, 
         duration, 
         timestamp: Math.floor(this.lastTabChangeTime / 1000) 
-      }).catch(err => console.error("Failed to record usage", err));
+      }).catch(err => console.error("Failed to record internal usage", err));
     }
+    this.lastTabChangeTime = 0; // Pause timer
+  }
+
+  setTab(tab: 'dashboard' | 'performance' | 'processes' | 'management' | 'advisor' | 'reports' | 'dev' | 'gaming' | 'analytics') {
+    // 1. Record usage of previous tab (only if active)
+    this.recordCurrentUsage();
 
     // 2. Switch tab
     this.activeTab = tab;
-    this.lastTabChangeTime = now;
+    this.lastTabChangeTime = Date.now();
     this.managementSearchTerm = '';
+    
+    // 3. Reset idle on interaction
+    this.resetIdleTimer();
 
     if (tab === 'management') {
       this.refreshManagementData();
@@ -1260,6 +1342,7 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     this.updateCaches();
     this.cdr.markForCheck();
   }
+
 
 
   setMgmtSubTab(sub: 'services' | 'startup') {
