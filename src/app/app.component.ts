@@ -492,7 +492,13 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       }
     });
 
-    // Minimum splash duration 2.5s
+    listen('day_reset', () => {
+      this.fetchUsageLogs();
+      this.fetchUsageLimits();
+      this.showLimitReachedModal = false;
+      this.showLimitWarningModal = false;
+      this.cdr.markForCheck();
+    });
     setTimeout(() => {
       this.isAppReady = true;
       this.cdr.markForCheck();

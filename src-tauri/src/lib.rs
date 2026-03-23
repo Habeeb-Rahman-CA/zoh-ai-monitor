@@ -1602,22 +1602,40 @@ pub fn run() {
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     let now_app = get_active_app();
+                    let date_str = chrono::Local::now().format("%Y-%m-%d").to_string();
                     
                     let elapsed = last_change.elapsed().as_secs();
+
+                    // Automatic Midnight Reset & Logging Split
+                    if date_str != last_alert_date {
+                        // 1. Log what we have so far for the OLD day
+                        if elapsed > 0 {
+                            if let Ok(db) = thread_state_tracking.db.lock() {
+                                let timestamp = chrono::Utc::now().timestamp();
+                                // We use a slightly older timestamp to ensure it's recorded for yesterday in SQLite logic if needed
+                                // but SQLite date('now') should handle it at 00:00:01
+                                let _ = db.execute(
+                                    "INSERT INTO usage_logs (user_id, feature, duration, created_at) VALUES (?1, ?2, ?3, ?4)",
+                                    params!["system_user", current_app, elapsed, timestamp],
+                                );
+                            }
+                        }
+                        
+                        // 2. Clear trackers
+                        sent_alerts.clear();
+                        last_alert_date = date_str.clone();
+                        last_change = std::time::Instant::now(); // Restart timer for the new day
+                        
+                        // 3. Notify frontend
+                        use tauri::Emitter;
+                        let _ = app_handle.emit("day_reset", ());
+                    }
 
                     // Every 30 seconds, check against limits
                     check_counter += 1;
                     if check_counter >= 30 {
                         check_counter = 0;
                         if let Ok(db) = thread_state_tracking.db.lock() {
-                            let date_str = chrono::Local::now().format("%Y-%m-%d").to_string();
-                            
-                            // Reset tracking on new day
-                            if date_str != last_alert_date {
-                                sent_alerts.clear();
-                                last_alert_date = date_str.clone();
-                            }
-
                             let mut stmt = db.prepare(
                                 "SELECT SUM(duration) FROM usage_logs 
                                  WHERE feature = ?1 AND date(created_at, 'unixepoch', 'localtime') = date('now', 'localtime')"
