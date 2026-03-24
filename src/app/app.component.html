@@ -293,18 +293,21 @@
 
     <!-- Dashboard View -->
     <section class="dashboard-view" [class.hidden]="activeTab !== 'dashboard'">
-      
+
       <!-- Pro Insights (Phase 9 Reloaded) -->
       <div class="pro-insights-bar fade-in" *ngIf="systemStats">
         <div class="pro-card score-card">
           <div class="pro-label">PRODUCTIVITY</div>
           <div class="pro-value-row">
-            <span class="pro-value" [style.color]="productivityScore > 80 ? 'var(--accent-green)' : 'var(--accent-blue)'">{{ productivityScore }}%</span>
-            <i class="ri-line-chart-line pro-trend" [style.color]="productivityScore > 80 ? 'var(--accent-green)' : 'var(--accent-blue)'"></i>
+            <span class="pro-value"
+              [style.color]="productivityScore > 80 ? 'var(--accent-green)' : 'var(--accent-blue)'">{{ productivityScore
+              }}%</span>
+            <i class="ri-line-chart-line pro-trend"
+              [style.color]="productivityScore > 80 ? 'var(--accent-green)' : 'var(--accent-blue)'"></i>
           </div>
           <div class="pro-sub">Dev tool efficiency</div>
         </div>
-        
+
         <div class="pro-card streak-card">
           <div class="pro-label">STREAK</div>
           <div class="pro-value-row">
@@ -315,20 +318,20 @@
         </div>
 
         <div class="pro-card insights-card">
-           <div class="pro-label">SMART ANALYTICS</div>
-           <div class="insight-ticker">
-              <div class="insight-item" *ngFor="let insight of productivityInsights">
-                <i [class]="insight.icon" style="margin-right: 8px; color: var(--primary);"></i>
-                <span>{{ insight.text }}</span>
-              </div>
-              <div class="insight-empty" *ngIf="productivityInsights.length === 0">
-                <i class="ri-pulse-line" style="margin-right: 8px;"></i> Analyzing patterns...
-              </div>
-           </div>
+          <div class="pro-label">SMART ANALYTICS</div>
+          <div class="insight-ticker">
+            <div class="insight-item" *ngFor="let insight of productivityInsights">
+              <i [class]="insight.icon" style="margin-right: 8px; color: var(--primary);"></i>
+              <span>{{ insight.text }}</span>
+            </div>
+            <div class="insight-empty" *ngIf="productivityInsights.length === 0">
+              <i class="ri-pulse-line" style="margin-right: 8px;"></i> Analyzing patterns...
+            </div>
+          </div>
         </div>
       </div>
 
-      
+
 
 
       <div class="dashboard-grid" *ngIf="systemStats">
@@ -1509,9 +1512,9 @@
           </div>
         </div>
         <div class="header-actions">
-           <button class="refresh-btn" (click)="fetchUsageLogs(); fetchDailyUsage(); fetchWeeklyTrends()">
-             <i class="ri-refresh-line"></i> Refresh Data
-           </button>
+          <button class="refresh-btn" (click)="fetchUsageLogs(); fetchDailyUsage(); fetchWeeklyTrends()">
+            <i class="ri-refresh-line"></i> Refresh Data
+          </button>
         </div>
       </div>
 
@@ -1525,7 +1528,7 @@
         </div>
         <div class="stat-box">
           <span class="stat-label">NUMBER 1 APP</span>
-          <span class="stat-value">{{ dailyUsage[0].feature }}</span>
+          <span class="stat-value">{{ dailyUsage[0].feature | titlecase }}</span>
           <span class="stat-subtext">{{ formatDuration(dailyUsage[0].totalDuration) }} active</span>
         </div>
         <div class="stat-box">
@@ -1538,20 +1541,20 @@
       <div class="analytics-grid-new">
         <!-- Daily Distribution Chart -->
         <div class="chart-card fade-in">
-           <div class="card-header">
-             <span class="icon" style="color: #60CDFF;"><i class="ri-bar-chart-fill"></i></span>
-             <div class="title-group">
-                <h3>Daily Feature Distribution</h3>
-                <span class="subtitle">Usage in minutes · Top 8</span>
-             </div>
-           </div>
-           <div class="chart-body">
-             <canvas #dailyUsageCanvas></canvas>
-             <div class="empty-chart" *ngIf="dailyUsage.length === 0">
-               <i class="ri-pie-chart-line"></i>
-               <p>Collecting data...</p>
-             </div>
-           </div>
+          <div class="card-header">
+            <span class="icon" style="color: #60CDFF;"><i class="ri-bar-chart-fill"></i></span>
+            <div class="title-group">
+              <h3>Daily Feature Distribution</h3>
+              <span class="subtitle">Usage in minutes · Top 8</span>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas #dailyUsageCanvas></canvas>
+            <div class="empty-chart" *ngIf="dailyUsage.length === 0">
+              <i class="ri-pie-chart-line"></i>
+              <p>Collecting data...</p>
+            </div>
+          </div>
         </div>
 
         <!-- Weekly Trend Chart -->
@@ -1559,21 +1562,21 @@
           <div class="card-header">
             <span class="icon" style="color: #B56CFF;"><i class="ri-line-chart-line"></i></span>
             <div class="title-group">
-               <h3>Weekly Usage Intensity</h3>
-               <span class="subtitle">Total hours per day</span>
+              <h3>Weekly Usage Intensity</h3>
+              <span class="subtitle">Total hours per day</span>
             </div>
           </div>
           <div class="chart-body">
             <canvas #weeklyTrendCanvas></canvas>
             <div class="empty-chart" *ngIf="weeklyTrends.length === 0">
-               <i class="ri-line-chart-line"></i>
-               <p>Weekly history will appear as data matures</p>
+              <i class="ri-line-chart-line"></i>
+              <p>Weekly history will appear as data matures</p>
             </div>
           </div>
         </div>
 
         <!-- App Usage Limits -->
-        <div class="stat-card limits-card fade-in">
+        <!-- <div class="stat-card limits-card fade-in">
           <div class="card-header">
             <span class="icon" style="color: #FF6B6B;"><i class="ri-forbid-2-line"></i></span>
             <div class="title-group">
@@ -1619,14 +1622,14 @@
                 <p>No limits set yet.</p>
              </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Detailed Logs -->
         <div class="stat-card logs-card-new fade-in">
           <div class="card-header">
             <div class="title-group">
-               <h3>Historical Activity</h3>
-               <span class="subtitle">Last 100 app switches</span>
+              <h3>Historical Activity</h3>
+              <span class="subtitle">Last 100 app switches</span>
             </div>
           </div>
           <div class="table-container">
@@ -1640,7 +1643,7 @@
               </thead>
               <tbody>
                 <tr *ngFor="let log of usageLogs; trackBy: trackById">
-                  <td><span class="app-pill">{{ log.feature }}</span></td>
+                  <td><span class="app-pill">{{ log.feature | titlecase }}</span></td>
                   <td class="bold-cell">{{ formatDuration(log.duration) }}</td>
                   <td class="dim-cell">{{ formatTimestamp(log.createdAt) }}</td>
                 </tr>
@@ -1656,32 +1659,33 @@
 
     <!-- Limit Warning Modal (80%) -->
     <div class="limit-modal-overlay warning" *ngIf="showLimitWarningModal && warningLimit">
-       <div class="limit-card-reached warning">
-          <div class="card-glow warning"></div>
-          <div class="reached-content">
-             <div class="icon-pulse warning">
-                <i class="ri-history-line"></i>
-             </div>
-             <h2>Time Check</h2>
-             <p>You've used <strong>80%</strong> of your limit for <strong>{{ warningLimit.feature }}</strong></p>
-             
-             <div class="wellbeing-progress">
-                <div class="wb-track">
-                   <div class="wb-fill" style="width: 80%"></div>
-                </div>
-                <span class="wb-label">Almost there ({{ (warningLimit.dailyLimit * 0.8) / 60 }} / {{ warningLimit.dailyLimit / 60 }} mins)</span>
-             </div>
-
-             <div class="modal-actions">
-                <button class="dismiss-btn secondary" (click)="showLimitWarningModal = false">Ignore</button>
-                <button class="dismiss-btn primary" (click)="showLimitWarningModal = false">Take a Break</button>
-             </div>
+      <div class="limit-card-reached warning">
+        <div class="card-glow warning"></div>
+        <div class="reached-content">
+          <div class="icon-pulse warning">
+            <i class="ri-history-line"></i>
           </div>
-       </div>
+          <h2>Time Check</h2>
+          <p>You've used <strong>80%</strong> of your limit for <strong>{{ warningLimit.feature }}</strong></p>
+
+          <div class="wellbeing-progress">
+            <div class="wb-track">
+              <div class="wb-fill" style="width: 80%"></div>
+            </div>
+            <span class="wb-label">Almost there ({{ (warningLimit.dailyLimit * 0.8) / 60 }} / {{ warningLimit.dailyLimit
+              / 60 }} mins)</span>
+          </div>
+
+          <div class="modal-actions">
+            <button class="dismiss-btn secondary" (click)="showLimitWarningModal = false">Ignore</button>
+            <button class="dismiss-btn primary" (click)="showLimitWarningModal = false">Take a Break</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Limit Reached Modal -->
-    <div class="limit-modal-overlay" [class.hard-lock]="reachedLimit?.restrictionType === 'hard'" *ngIf="showLimitReachedModal && reachedLimit">
+    <!-- <div class="limit-modal-overlay" [class.hard-lock]="reachedLimit?.restrictionType === 'hard'" *ngIf="showLimitReachedModal && reachedLimit">
        <div class="limit-card-reached" [class.hard-lock]="reachedLimit.restrictionType === 'hard'">
           <div class="card-glow" [class.hard-lock]="reachedLimit.restrictionType === 'hard'"></div>
           <div class="reached-content">
@@ -1708,7 +1712,7 @@
              </div>
           </div>
        </div>
-    </div>
+    </div> -->
 
 
     <!-- Custom Update Modal -->
@@ -1762,7 +1766,7 @@
         </div>
       </div>
     </div>
-    </main>
+  </main>
 
 
   <section class="loading" *ngIf="!systemStats">

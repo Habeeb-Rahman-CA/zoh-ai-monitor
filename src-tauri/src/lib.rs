@@ -1636,7 +1636,7 @@ pub fn run() {
                     if check_counter >= 30 {
                         check_counter = 0;
                         if let Ok(db) = thread_state_tracking.db.lock() {
-                            let mut stmt = db.prepare(
+                            let stmt = db.prepare(
                                 "SELECT SUM(duration) FROM usage_logs 
                                  WHERE feature = ?1 AND date(created_at, 'unixepoch', 'localtime') = date('now', 'localtime')"
                             ).ok();
