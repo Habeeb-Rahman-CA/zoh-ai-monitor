@@ -1,11 +1,11 @@
 {
-    "version": "1.0.6",
-    "notes": "Version 1.0.6: Fixed updater public keys and polished UI components.",
+    "version": "1.0.7",
+    "notes": "Version 1.0.7: Project wide version sync and minor refinements.",
     "pub_date": "2026-03-15T13:30:00Z",
     "platforms": {
         "windows-x86_64": {
             "signature": "SIGNATURE_GOES_HERE",
-            "url": "https://github.com/Habeeb-Rahman-CA/zoh-ai-monitor/releases/download/v1.0.6/zoh-ai-monitor_1.0.6_x64-setup.exe"
+            "url": "https://github.com/Habeeb-Rahman-CA/zoh-ai-monitor/releases/download/v1.0.7/zoh-ai-monitor_1.0.7_x64-setup.exe"
         }
     }
 }
